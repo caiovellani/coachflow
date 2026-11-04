@@ -21,7 +21,9 @@ const PROVIDER = "meta";
 const HELP =
   'Posso enviar seu treino: mande "TREINO". Para falar com seu personal, mande "HUMANO". Para parar as mensagens automáticas, mande "SAIR".';
 
-const PAIN_REPORT = /\b(dor|dores|doendo|doeu|desconforto|machuquei|lesão|lesao)\b/i;
+// Lista provisoria ate o agente da Fase 7. \b nao funciona depois de letra acentuada.
+const PAIN_REPORT =
+  /(^|[^\p{L}])(dor|dores|d[óo]i|doendo|doeu|desconforto|machu[cq]\p{L}*|les[ãa]o|torci)(?![\p{L}])/iu;
 
 /**
  * Grava antes de processar: uma falha depois disso nao perde a mensagem.

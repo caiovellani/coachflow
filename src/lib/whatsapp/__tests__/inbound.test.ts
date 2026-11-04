@@ -186,8 +186,23 @@ describe.skipIf(!url)("mensagens recebidas", () => {
     expect(lastReply()).toContain("atendimento profissional");
   });
 
-  it("palavra parecida nao dispara alerta de dor", async () => {
-    await receive(message("Fiz o treino na esteira do condomínio"));
+  it.each([
+    "Meu joelho dói",
+    "o ombro doi um pouco",
+    "Machuquei o punho",
+    "acho que torci o tornozelo",
+    "DOR nas costas",
+  ])("sinaliza o relato: %s", async (text) => {
+    await receive(message(text));
+    expect(await prisma.alert.count({ where: { clientId } })).toBe(1);
+  });
+
+  it.each([
+    "Fiz o treino na esteira do condomínio",
+    "Sou doido por agachamento",
+    "o instrutor corrigiu minha postura",
+  ])("palavra parecida nao dispara alerta: %s", async (text) => {
+    await receive(message(text));
     expect(await prisma.alert.count({ where: { clientId } })).toBe(0);
   });
 
