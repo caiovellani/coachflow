@@ -102,6 +102,9 @@ model Client {
   status             ClientStatus @default(ACTIVE)
   startDate          DateTime     @default(now())
   plannedPerWeek     Int? // frequencia planejada
+  whatsappUserId     String?   @unique // BSUID: identifica o aluno; o telefone pode nao vir no webhook
+  whatsappLinkCode   String?   @unique
+  whatsappLinkCodeExpiresAt DateTime?
   whatsappVerifiedAt DateTime? // vinculo verificado (telefone nao e autenticacao)
   messagesOptedOutAt DateTime? // aluno interrompeu mensagens automaticas
   createdAt          DateTime     @default(now())
@@ -283,7 +286,8 @@ model MessageEvent {
   provider          String // ex: "meta", "twilio", "zapi"
   providerMessageId String // id da mensagem no provedor
   direction         MessageDirection        @default(INBOUND)
-  phone             String
+  phone             String? // opcional: a Meta pode omitir o numero
+  whatsappUserId    String?
   body              String?
   processingStatus  MessageProcessingStatus @default(RECEIVED)
   attempts          Int                     @default(0)

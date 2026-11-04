@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import { Suspense } from "react";
 
 import { changeClientStatus } from "@/app/actions/clients";
+import { createLinkCodeAction } from "@/app/actions/whatsapp";
 import { endAssignmentAction } from "@/app/actions/workouts";
 import { ActionButton } from "@/components/app/action-button";
 import { EmptyState } from "@/components/app/empty-state";
@@ -20,6 +21,7 @@ import { listClientSessions } from "@/lib/data/sessions";
 import { listActiveAssignments, listPlans } from "@/lib/data/workouts";
 import { daysBetween, formatDate } from "@/lib/dates";
 import { formatLoad } from "@/lib/format";
+import { linkMessage, whatsappLinkUrl } from "@/lib/whatsapp/link-code";
 import { CLIENT_STATUS_LABELS } from "@/lib/labels";
 import { formatPhone } from "@/lib/phone";
 
@@ -59,6 +61,14 @@ async function ClientProfile({ params }: { params: Params }) {
   const frequency = client.plannedPerWeek
     ? `${sessionsLastWeek} de ${client.plannedPerWeek} nos últimos 7 dias`
     : `${sessionsLastWeek} nos últimos 7 dias`;
+
+  const linkCodeIsValid =
+    client.whatsappLinkCode !== null &&
+    client.whatsappLinkCodeExpiresAt !== null &&
+    client.whatsappLinkCodeExpiresAt > now;
+  const linkUrl = linkCodeIsValid
+    ? whatsappLinkUrl(client.whatsappLinkCode!)
+    : null;
 
   const nextStatuses =
     client.status === ClientStatus.ACTIVE
@@ -100,6 +110,41 @@ async function ClientProfile({ params }: { params: Params }) {
               {label}
             </ActionButton>
           ))}
+        </div>
+      </section>
+
+      <section className="flex flex-col gap-3 rounded-xl border p-4">
+        <h2 className="font-semibold">WhatsApp</h2>
+        {client.whatsappVerifiedAt ? (
+          <p className="text-sm text-muted-foreground">
+            Vinculado em {formatDate(client.whatsappVerifiedAt)}
+            {client.messagesOptedOutAt &&
+              ". O aluno pediu para não receber mensagens automáticas."}
+          </p>
+        ) : linkCodeIsValid ? (
+          <div className="flex flex-col gap-2 text-sm">
+            <p>
+              Envie ao aluno para ele mandar esta mensagem ao seu número:{" "}
+              <strong>{linkMessage(client.whatsappLinkCode!)}</strong>
+            </p>
+            {linkUrl && (
+              <a href={linkUrl} className="break-all text-primary underline">
+                {linkUrl}
+              </a>
+            )}
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            Gere um código para o aluno confirmar o número pelo WhatsApp. Ao
+            enviá-lo, ele concorda em conversar com o assistente.
+          </p>
+        )}
+        <div>
+          <ActionButton action={createLinkCodeAction.bind(null, id)}>
+            {client.whatsappVerifiedAt || linkCodeIsValid
+              ? "Gerar novo código"
+              : "Gerar código de vínculo"}
+          </ActionButton>
         </div>
       </section>
 
