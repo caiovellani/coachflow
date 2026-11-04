@@ -1,0 +1,298 @@
+// CoachFlow - schema inicial (Fase 0)
+// Multi-tenant: toda entidade de negocio carrega professionalId.
+// Historico preservado: editar um treino cria nova versao (parentPlanId + version);
+// sessoes apontam para a versao exata usada e guardam snapshot do nome do exercicio.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL") // pooler (runtime)
+  directUrl = env("DIRECT_URL") // conexao direta (migrations)
+}
+
+// ---------- Enums ----------
+
+enum ClientStatus {
+  ACTIVE
+  PAUSED
+  ARCHIVED
+}
+
+enum PlanStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum AssignmentStatus {
+  ACTIVE
+  ENDED
+}
+
+enum SessionStatus {
+  IN_PROGRESS
+  COMPLETED
+  ABANDONED
+}
+
+enum LoadUnit {
+  KG
+  LB
+}
+
+enum AlertType {
+  INACTIVITY
+  LOW_FREQUENCY
+  DIFFICULTY_REPORTED
+  PAIN_REPORTED
+  NOT_STARTED
+  HUMAN_SUPPORT_REQUESTED
+}
+
+enum AlertStatus {
+  OPEN
+  SEEN
+  RESOLVED
+}
+
+enum MessageDirection {
+  INBOUND
+  OUTBOUND
+}
+
+enum MessageProcessingStatus {
+  RECEIVED
+  PROCESSING
+  PROCESSED
+  FAILED
+}
+
+// ---------- Tenant ----------
+
+model Professional {
+  id         String   @id @default(uuid())
+  authUserId String   @unique @db.Uuid // id do usuario no Supabase Auth
+  name       String
+  email      String   @unique
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  clients        Client[]
+  exercises      Exercise[]
+  workoutPlans   WorkoutPlan[]
+  workoutSessions WorkoutSession[]
+  alerts         Alert[]
+  messageEvents  MessageEvent[]
+}
+
+// ---------- Alunos ----------
+
+model Client {
+  id                 String       @id @default(uuid())
+  professionalId     String
+  name               String
+  phone              String // E.164 normalizado, ex: +5511999998888
+  email              String?
+  birthDate          DateTime?
+  goal               String?
+  notes              String?
+  status             ClientStatus @default(ACTIVE)
+  startDate          DateTime     @default(now())
+  plannedPerWeek     Int? // frequencia planejada
+  whatsappVerifiedAt DateTime? // vinculo verificado (telefone nao e autenticacao)
+  messagesOptedOutAt DateTime? // aluno interrompeu mensagens automaticas
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+
+  professional Professional        @relation(fields: [professionalId], references: [id], onDelete: Cascade)
+  assignments  ClientWorkoutPlan[]
+  sessions     WorkoutSession[]
+  alerts       Alert[]
+  messageEvents MessageEvent[]
+
+  // Mesmo telefone pode ser aluno de profissionais diferentes; unico dentro de um profissional.
+  @@unique([professionalId, phone])
+  @@index([phone])
+  @@index([professionalId, status])
+}
+
+// ---------- Exercicios e treinos ----------
+
+model Exercise {
+  id              String    @id @default(uuid())
+  professionalId  String
+  name            String
+  description     String?
+  muscleGroup     String?
+  equipment       String?
+  notes           String?
+  videoPath       String? // futuro: Supabase Storage
+  videoDurationSec Int? // futuro: max 30s
+  archivedAt      DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  professional Professional      @relation(fields: [professionalId], references: [id], onDelete: Cascade)
+  planItems    WorkoutExercise[]
+  logs         ExerciseLog[]
+
+  @@index([professionalId, name])
+}
+
+model WorkoutPlan {
+  id             String     @id @default(uuid())
+  professionalId String
+  name           String
+  description    String?
+  status         PlanStatus @default(DRAFT)
+  version        Int        @default(1)
+  parentPlanId   String? // versao anterior deste treino
+  publishedAt    DateTime?
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  professional Professional        @relation(fields: [professionalId], references: [id], onDelete: Cascade)
+  parentPlan   WorkoutPlan?        @relation("PlanVersions", fields: [parentPlanId], references: [id], onDelete: SetNull)
+  childPlans   WorkoutPlan[]       @relation("PlanVersions")
+  exercises    WorkoutExercise[]
+  assignments  ClientWorkoutPlan[]
+  sessions     WorkoutSession[]
+
+  @@index([professionalId, status])
+}
+
+model WorkoutExercise {
+  id            String   @id @default(uuid())
+  workoutPlanId String
+  exerciseId    String
+  position      Int // ordem no treino
+  sets          Int
+  reps          String // "10" ou "8-12"
+  referenceLoad Decimal? @db.Decimal(7, 2)
+  loadUnit      LoadUnit @default(KG)
+  loadNote      String? // orientacao de carga
+  restSeconds   Int?
+  notes         String?
+
+  workoutPlan WorkoutPlan @relation(fields: [workoutPlanId], references: [id], onDelete: Cascade)
+  exercise    Exercise    @relation(fields: [exerciseId], references: [id], onDelete: Restrict)
+
+  @@unique([workoutPlanId, position])
+  @@index([exerciseId])
+}
+
+model ClientWorkoutPlan {
+  id            String           @id @default(uuid())
+  clientId      String
+  workoutPlanId String
+  label         String? // "A", "B", "C"
+  instructions  String?
+  startDate     DateTime         @default(now())
+  endDate       DateTime?
+  status        AssignmentStatus @default(ACTIVE)
+  createdAt     DateTime         @default(now())
+
+  client      Client      @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  workoutPlan WorkoutPlan @relation(fields: [workoutPlanId], references: [id], onDelete: Restrict)
+
+  @@index([clientId, status])
+}
+
+// ---------- Sessoes e registros ----------
+
+model WorkoutSession {
+  id             String        @id @default(uuid())
+  professionalId String // denormalizado para escopo/tenant
+  clientId       String
+  workoutPlanId  String? // versao exata usada
+  status         SessionStatus @default(IN_PROGRESS)
+  startedAt      DateTime      @default(now())
+  completedAt    DateTime? // so preenchido com confirmacao do aluno
+  sourceMessageId String? // mensagem que originou o registro (idempotencia)
+  createdAt      DateTime      @default(now())
+
+  professional Professional  @relation(fields: [professionalId], references: [id], onDelete: Cascade)
+  client       Client        @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  workoutPlan  WorkoutPlan?  @relation(fields: [workoutPlanId], references: [id], onDelete: SetNull)
+  exerciseLogs ExerciseLog[]
+
+  @@index([clientId, startedAt])
+  @@index([professionalId, startedAt])
+}
+
+model ExerciseLog {
+  id           String  @id @default(uuid())
+  sessionId    String
+  exerciseId   String
+  exerciseName String // snapshot: nao muda se o exercicio for renomeado
+  position     Int     @default(0)
+  notes        String?
+
+  session  WorkoutSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  exercise Exercise       @relation(fields: [exerciseId], references: [id], onDelete: Restrict)
+  sets     SetLog[]
+
+  @@index([sessionId])
+  @@index([exerciseId])
+}
+
+model SetLog {
+  id            String   @id @default(uuid())
+  exerciseLogId String
+  setNumber     Int
+  reps          Int?
+  load          Decimal? @db.Decimal(7, 2)
+  loadUnit      LoadUnit @default(KG)
+
+  exerciseLog ExerciseLog @relation(fields: [exerciseLogId], references: [id], onDelete: Cascade)
+
+  @@unique([exerciseLogId, setNumber])
+}
+
+// ---------- Alertas ----------
+
+model Alert {
+  id             String      @id @default(uuid())
+  professionalId String
+  clientId       String
+  type           AlertType
+  message        String // explicavel: "sem registro ha 7 dias"
+  context        Json?
+  status         AlertStatus @default(OPEN)
+  createdAt      DateTime    @default(now())
+  resolvedAt     DateTime?
+
+  professional Professional @relation(fields: [professionalId], references: [id], onDelete: Cascade)
+  client       Client       @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([professionalId, status, createdAt])
+  @@index([clientId])
+}
+
+// ---------- Mensagens (webhook / idempotencia) ----------
+
+model MessageEvent {
+  id                String                  @id @default(uuid())
+  professionalId    String?
+  clientId          String?
+  provider          String // ex: "meta", "twilio", "zapi"
+  providerMessageId String // id da mensagem no provedor
+  direction         MessageDirection        @default(INBOUND)
+  phone             String
+  body              String?
+  processingStatus  MessageProcessingStatus @default(RECEIVED)
+  attempts          Int                     @default(0)
+  error             String?
+  receivedAt        DateTime                @default(now())
+  processedAt       DateTime?
+
+  professional Professional? @relation(fields: [professionalId], references: [id], onDelete: SetNull)
+  client       Client?       @relation(fields: [clientId], references: [id], onDelete: SetNull)
+
+  // Garante que mensagens duplicadas do webhook nao sejam processadas duas vezes.
+  @@unique([provider, providerMessageId])
+  @@index([processingStatus, receivedAt])
+}
