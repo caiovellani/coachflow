@@ -4,7 +4,7 @@ import { Suspense } from "react";
 
 import { LinkErrorNotice } from "@/components/auth/link-error-notice";
 import { LoginForm } from "@/components/auth/login-form";
-import { ResetOnHide } from "@/components/auth/reset-on-hide";
+import { ResetOnHide } from "@/components/form/reset-on-hide";
 
 export const metadata: Metadata = { title: "Entrar" };
 

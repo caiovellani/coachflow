@@ -211,7 +211,8 @@ model WorkoutSession {
   status         SessionStatus @default(IN_PROGRESS)
   startedAt      DateTime      @default(now())
   completedAt    DateTime? // so preenchido com confirmacao do aluno
-  sourceMessageId String? // mensagem que originou o registro (idempotencia)
+  idempotencyKey String? // "panel:<uuid>" ou "<provider>:<messageId>": evita registro duplicado
+  notes          String?
   createdAt      DateTime      @default(now())
 
   professional Professional  @relation(fields: [professionalId], references: [id], onDelete: Cascade)
@@ -219,6 +220,7 @@ model WorkoutSession {
   workoutPlan  WorkoutPlan?  @relation(fields: [workoutPlanId], references: [id], onDelete: SetNull)
   exerciseLogs ExerciseLog[]
 
+  @@unique([professionalId, idempotencyKey])
   @@index([clientId, startedAt])
   @@index([professionalId, startedAt])
 }

@@ -9,17 +9,17 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { Suspense } from "react";
 
 import { cn } from "@/lib/utils";
 
-type NavItem = { label: string; icon: LucideIcon; href?: string };
+type NavItem = { label: string; icon: LucideIcon; href: string };
 
-// Itens sem href pertencem a fases futuras e aparecem desabilitados.
 const NAV_ITEMS: NavItem[] = [
   { label: "Início", icon: LayoutDashboard, href: "/dashboard" },
-  { label: "Alunos", icon: Users },
-  { label: "Exercícios", icon: Dumbbell },
-  { label: "Treinos", icon: ClipboardList },
+  { label: "Alunos", icon: Users, href: "/clients" },
+  { label: "Exercícios", icon: Dumbbell, href: "/exercises" },
+  { label: "Treinos", icon: ClipboardList, href: "/workouts" },
 ];
 
 const VARIANT_CLASSES = {
@@ -35,21 +35,30 @@ const VARIANT_CLASSES = {
   },
 };
 
-export function AppNav({ variant }: { variant: "sidebar" | "bottom" }) {
-  const pathname = usePathname();
+type Variant = keyof typeof VARIANT_CLASSES;
+
+function NavList({
+  variant,
+  pathname,
+}: {
+  variant: Variant;
+  pathname: string | null;
+}) {
   const classes = VARIANT_CLASSES[variant];
 
   return (
     <ul className={classes.list}>
-      {NAV_ITEMS.map(({ label, icon: Icon, href }) => (
-        <li key={label}>
-          {href ? (
+      {NAV_ITEMS.map(({ label, icon: Icon, href }) => {
+        const active = pathname === href || pathname?.startsWith(`${href}/`);
+
+        return (
+          <li key={label}>
             <Link
               href={href}
-              aria-current={pathname === href ? "page" : undefined}
+              aria-current={active ? "page" : undefined}
               className={cn(
                 classes.item,
-                pathname === href
+                active
                   ? classes.active
                   : "text-muted-foreground hover:text-foreground",
               )}
@@ -57,18 +66,22 @@ export function AppNav({ variant }: { variant: "sidebar" | "bottom" }) {
               <Icon className="size-5" aria-hidden />
               {label}
             </Link>
-          ) : (
-            <span
-              aria-disabled
-              title="Em breve"
-              className={cn(classes.item, "text-muted-foreground/50")}
-            >
-              <Icon className="size-5" aria-hidden />
-              {label}
-            </span>
-          )}
-        </li>
-      ))}
+          </li>
+        );
+      })}
     </ul>
+  );
+}
+
+function CurrentNavList({ variant }: { variant: Variant }) {
+  return <NavList variant={variant} pathname={usePathname()} />;
+}
+
+// O caminho so existe na requisicao: o menu entra no shell estatico sem item ativo.
+export function AppNav({ variant }: { variant: Variant }) {
+  return (
+    <Suspense fallback={<NavList variant={variant} pathname={null} />}>
+      <CurrentNavList variant={variant} />
+    </Suspense>
   );
 }

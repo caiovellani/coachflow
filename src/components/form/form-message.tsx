@@ -1,9 +1,9 @@
 import { CircleAlert, CircleCheck } from "lucide-react";
 
-import type { AuthActionState } from "@/app/actions/auth";
+import type { ActionState } from "@/lib/action-state";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
-export function FormMessage({ state }: { state: AuthActionState }) {
+export function FormMessage({ state }: { state: ActionState }) {
   if (!state) return null;
 
   const isError = state.status === "error";

@@ -2,7 +2,7 @@
 
 import { useSearchParams } from "next/navigation";
 
-import { FormMessage } from "@/components/auth/form-message";
+import { FormMessage } from "@/components/form/form-message";
 
 /** Mostra o erro de um link de e-mail recusado em /auth/confirm. */
 export function LinkErrorNotice() {
