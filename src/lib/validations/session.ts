@@ -15,7 +15,10 @@ export const sessionSchema = z.object({
   date: dateInput,
   workoutPlanId: z.string(),
   notes: optionalText(1000),
-  items: z.array(sessionItemSchema).min(1, "Adicione ao menos um exercício."),
+  items: z
+    .array(sessionItemSchema)
+    .min(1, "Adicione ao menos um exercício.")
+    .max(50, "Use no máximo 50 exercícios."),
 });
 
 export type SessionInput = z.infer<typeof sessionSchema>;

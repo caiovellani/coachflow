@@ -10,7 +10,8 @@ export function safeNextPath(next: unknown): string {
   const base = "http://internal.invalid";
   try {
     const url = new URL(next, base);
-    if (url.origin !== base) return DEFAULT_PATH;
+    // "/.//evil.com" resolve para "//evil.com", que o navegador trata como outro site.
+    if (url.origin !== base || url.pathname.startsWith("//")) return DEFAULT_PATH;
     return `${url.pathname}${url.search}`;
   } catch {
     return DEFAULT_PATH;

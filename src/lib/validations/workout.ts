@@ -27,7 +27,10 @@ const workoutItemSchema = z.object({
 export const workoutSchema = z.object({
   name: requiredText(100, "Informe o nome do treino."),
   description: optionalText(1000),
-  items: z.array(workoutItemSchema).min(1, "Adicione ao menos um exercício."),
+  items: z
+    .array(workoutItemSchema)
+    .min(1, "Adicione ao menos um exercício.")
+    .max(50, "Use no máximo 50 exercícios."),
 });
 
 export const assignmentSchema = z.object({

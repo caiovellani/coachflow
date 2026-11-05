@@ -120,6 +120,9 @@ describe("safeNextPath", () => {
   it.each([
     ["/clients?status=ACTIVE", "/clients?status=ACTIVE"],
     ["//evil.com", "/dashboard"],
+    ["/.//evil.com", "/dashboard"],
+    ["/..//evil.com", "/dashboard"],
+    ["/a/..//evil.com", "/dashboard"],
     ["/\\evil.com", "/dashboard"],
     ["https://evil.com", "/dashboard"],
     [null, "/dashboard"],
