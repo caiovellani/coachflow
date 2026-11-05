@@ -1,6 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 
-// Singleton para evitar multiplas conexoes no hot reload do Next.js em dev.
+// Singleton por processo: evita um pool por bundle (producao) e por hot reload (dev).
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
 
 export const prisma =
@@ -9,4 +9,4 @@ export const prisma =
     log: process.env.NODE_ENV === "development" ? ["warn", "error"] : ["error"],
   });
 
-if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
+globalForPrisma.prisma = prisma;

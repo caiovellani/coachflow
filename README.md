@@ -35,6 +35,20 @@ Next.js + React + TypeScript, Tailwind + shadcn/ui, React Hook Form + Zod, Prism
    - Confirm signup: `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=signup&next=/dashboard`
    - Reset password: `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=recovery&next=/reset-password`
 
+## Fase 6 - configuracao do WhatsApp (Cloud API da Meta)
+
+O webhook precisa de uma URL publica com HTTPS: use o app publicado ou um tunel em desenvolvimento.
+
+1. Em https://developers.facebook.com, criar um app do tipo Business e adicionar o produto WhatsApp.
+2. Preencher no ambiente: `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_DISPLAY_NUMBER` (so digitos),
+   `WHATSAPP_ACCESS_TOKEN` (token permanente de usuario do sistema), `WHATSAPP_APP_SECRET` e
+   `WHATSAPP_VERIFY_TOKEN` (uma frase aleatoria sua). As tres ultimas sao secretas.
+3. Em *WhatsApp > Configuration*, cadastrar `https://SEU_DOMINIO/api/webhooks/whatsapp` com o
+   mesmo verify token e assinar o campo `messages`.
+4. Testar: gerar o codigo no perfil de um aluno e enviar `VINCULAR CODIGO` ao numero.
+
+Comandos do aluno: `TREINO`, `HUMANO`, `SAIR` e `VOLTAR`. O agente de IA entra na Fase 7.
+
 ## Scripts
 - `pnpm dev` - servidor de desenvolvimento
 - `pnpm db:generate` / `pnpm db:migrate` / `pnpm db:deploy` / `pnpm db:studio` - Prisma

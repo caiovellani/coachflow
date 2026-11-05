@@ -22,8 +22,15 @@ Next.js 16 (App Router, src/), React 19, TypeScript, Tailwind 4, shadcn/ui, Reac
 8. Coletar apenas dados pessoais necessarios (LGPD).
 
 ## Estado atual
-- Fases 0 a 5 implementadas, mais as regras de alerta da Fase 8 (`src/lib/attention.ts`). Testadas com Auth falso + PGlite; falta validar com o Supabase real (passos no README).
-- Pendente: Fase 6 (depende de escolher o provedor de WhatsApp), Fase 7 (depende dela e da chave OpenAI) e o restante da Fase 8 (lembretes e alertas vindos de mensagens).
+- Fases 0 a 6 implementadas, mais as regras de alerta da Fase 8 (`src/lib/attention.ts`). Testadas com Auth e Graph API falsos + PGlite; falta validar com Supabase e Meta reais (passos no README).
+- Pendente: Fase 7 (depende da chave OpenAI) e o restante da Fase 8 (lembretes proativos exigem templates aprovados pela Meta).
+
+## WhatsApp (Fase 6)
+- Provedor: Cloud API oficial da Meta. Webhook em `src/app/api/webhooks/whatsapp/route.ts`: valida assinatura no corpo cru, grava e so depois processa em `after()`.
+- Identidade: `Client.whatsappUserId` guarda o BSUID (`user_id`). `from`/`wa_id` podem nao vir; nunca identificar o aluno so pelo telefone. O BSUID muda se o aluno trocar de numero (mensagens `system` tratadas em `inbound.ts`).
+- Vinculo: o aluno envia `VINCULAR <codigo>`. Isso prova a posse, registra o opt-in e abre a janela de 24h. Mensagem proativa fora dela exige template.
+- Enviar com `recipient` (BSUID) ou `to`, nunca os dois: a Meta prioriza o telefone.
+- Resposta com falha fica em `MessageEvent` como FAILED; ainda nao ha reprocessamento automatico.
 
 ## Dados e dominio
 - Acesso a dados em `src/lib/data/*`: toda funcao recebe `professionalId` de `requireProfessional()`. Server Actions em `src/app/actions/*`.

@@ -1,6 +1,6 @@
 import "server-only";
 
-import { ClientStatus, SessionStatus } from "@prisma/client";
+import { AlertStatus, ClientStatus, SessionStatus } from "@prisma/client";
 
 import { evaluateAttention } from "@/lib/attention";
 import { startOfDay } from "@/lib/dates";
@@ -11,7 +11,7 @@ const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 export async function getDashboard(professionalId: string, now: Date) {
   const completed = { professionalId, status: SessionStatus.COMPLETED };
 
-  const [clients, lastSessions, weekSessions, todaySessions, recent] =
+  const [clients, lastSessions, weekSessions, todaySessions, recent, alerts] =
     await Promise.all([
       prisma.client.findMany({
         where: { professionalId, status: ClientStatus.ACTIVE },
@@ -45,6 +45,11 @@ export async function getDashboard(professionalId: string, now: Date) {
           _count: { select: { exerciseLogs: true } },
         },
       }),
+      prisma.alert.findMany({
+        where: { professionalId, status: AlertStatus.OPEN },
+        orderBy: { createdAt: "desc" },
+        include: { client: { select: { id: true, name: true } } },
+      }),
     ]);
 
   const lastByClient = new Map(
@@ -70,9 +75,22 @@ export async function getDashboard(professionalId: string, now: Date) {
   return {
     activeClients: clients.length,
     trainedToday: todaySessions.length,
-    needAttention: attention.filter((item) => !item.inactive).length,
+    needAttention:
+      new Set([
+        ...attention.filter((item) => !item.inactive).map((a) => a.client.id),
+        ...alerts.map((alert) => alert.clientId),
+      ]).size,
     inactive: attention.filter((item) => item.inactive).length,
     attention,
+    alerts,
     recent,
   };
+}
+
+export async function resolveAlert(professionalId: string, id: string) {
+  const { count } = await prisma.alert.updateMany({
+    where: { id, professionalId, status: AlertStatus.OPEN },
+    data: { status: AlertStatus.RESOLVED, resolvedAt: new Date() },
+  });
+  return count === 1;
 }

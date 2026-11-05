@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
 
+import { resolveAlertAction } from "@/app/actions/alerts";
+import { ActionButton } from "@/components/app/action-button";
 import { EmptyState } from "@/components/app/empty-state";
 import { LinkButton } from "@/components/app/link-button";
 import { ListSkeleton } from "@/components/app/list-skeleton";
@@ -53,12 +55,26 @@ async function Dashboard() {
 
       <section className="flex flex-col gap-3">
         <h2 className="font-semibold">Atenção necessária</h2>
-        {data.attention.length === 0 ? (
+        {data.attention.length === 0 && data.alerts.length === 0 ? (
           <p className="text-sm text-muted-foreground">
             Nenhum aluno precisa de atenção agora.
           </p>
         ) : (
           <ul className="divide-y rounded-xl border">
+            {data.alerts.map((alert) => (
+              <li
+                key={alert.id}
+                className="flex items-center justify-between gap-3 p-3 text-sm"
+              >
+                <Link href={`/clients/${alert.client.id}`} className="min-w-0">
+                  <span className="font-medium">{alert.client.name}</span>:{" "}
+                  {alert.message} · {formatDate(alert.createdAt)}
+                </Link>
+                <ActionButton action={resolveAlertAction.bind(null, alert.id)}>
+                  Resolver
+                </ActionButton>
+              </li>
+            ))}
             {data.attention.map(({ client, message }) => (
               <li key={client.id}>
                 <Link href={`/clients/${client.id}`} className="block p-3 text-sm">

@@ -23,3 +23,14 @@ export function formatPhone(phone: string): string {
   const match = phone.match(/^\+55(\d{2})(\d{4,5})(\d{4})$/);
   return match ? `+55 (${match[1]}) ${match[2]}-${match[3]}` : phone;
 }
+
+/** Celular antigo no Brasil pode estar no WhatsApp sem o nono digito. */
+function withoutBrazilianNinthDigit(digits: string) {
+  return digits.replace(/^(55\d{2})9(\d{8})$/, "$1$2");
+}
+
+export function isSamePhone(a: string, b: string): boolean {
+  const canonical = (phone: string) =>
+    withoutBrazilianNinthDigit(phone.replace(/\D/g, ""));
+  return canonical(a) === canonical(b);
+}
