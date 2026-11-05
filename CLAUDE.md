@@ -1,7 +1,7 @@
 # CoachFlow
 
 SaaS B2B para personal trainers: painel web para o profissional + WhatsApp com agente de IA para o aluno.
-Documento de produto completo: `docs/produto.md` (consulte as fases do roadmap e os limites do agente antes de implementar).
+Documento de produto completo: `docs/produto.md`, local e fora do git porque o repositorio e publico (consulte as fases do roadmap e os limites do agente antes de implementar).
 
 ## Stack
 Next.js 16 (App Router, src/), React 19, TypeScript, Tailwind 4, shadcn/ui, React Hook Form + Zod, Prisma 6 (Postgres no Supabase), Supabase Auth/Storage, pnpm. Windows (PowerShell).
