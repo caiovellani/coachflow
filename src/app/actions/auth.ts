@@ -136,3 +136,10 @@ export async function signOut() {
   await supabase.auth.signOut();
   redirect("/login");
 }
+
+/** Encerra a sessao em todos os dispositivos, inclusive neste. */
+export async function signOutEverywhere() {
+  const supabase = await createSupabaseServerClient();
+  await supabase.auth.signOut({ scope: "global" });
+  redirect("/login");
+}
