@@ -1,8 +1,8 @@
 import "server-only";
 
-import { Prisma, SessionStatus } from "@prisma/client";
+import { Prisma, SessionStatus, type Client } from "@prisma/client";
 
-import { fromDateInput } from "@/lib/dates";
+import { fromDateInput, startOfDay } from "@/lib/dates";
 import { prisma } from "@/lib/prisma";
 import { parseLoad } from "@/lib/validations/common";
 import { parseReps, type SessionInput } from "@/lib/validations/session";
@@ -93,4 +93,69 @@ export async function createCompletedSession(
       },
     });
   }
+}
+
+const openSessionToday = (client: Client) =>
+  prisma.workoutSession.findFirst({
+    where: {
+      professionalId: client.professionalId,
+      clientId: client.id,
+      status: SessionStatus.IN_PROGRESS,
+      startedAt: { gte: startOfDay(new Date()) },
+    },
+    orderBy: { startedAt: "desc" },
+  });
+
+/** Registro pelo WhatsApp: acrescenta um exercicio a sessao aberta de hoje. */
+export async function appendExerciseLog(
+  client: Client,
+  entry: {
+    exercise: { id: string; name: string };
+    workoutPlanId: string | null;
+    reps: number[];
+    load: number | null;
+  },
+  idempotencyKey: string,
+) {
+  const session =
+    (await openSessionToday(client)) ??
+    (await prisma.workoutSession.create({
+      data: {
+        professionalId: client.professionalId,
+        clientId: client.id,
+        workoutPlanId: entry.workoutPlanId,
+        idempotencyKey,
+      },
+    }));
+
+  const position = await prisma.exerciseLog.count({
+    where: { sessionId: session.id },
+  });
+
+  return prisma.exerciseLog.create({
+    data: {
+      sessionId: session.id,
+      exerciseId: entry.exercise.id,
+      exerciseName: entry.exercise.name,
+      position: position + 1,
+      sets: {
+        create: entry.reps.map((reps, index) => ({
+          setNumber: index + 1,
+          reps,
+          load: entry.load,
+        })),
+      },
+    },
+  });
+}
+
+export async function completeOpenSession(client: Client) {
+  const session = await openSessionToday(client);
+  if (!session) return false;
+
+  await prisma.workoutSession.update({
+    where: { id: session.id },
+    data: { status: SessionStatus.COMPLETED, completedAt: new Date() },
+  });
+  return true;
 }

@@ -301,4 +301,5 @@ model MessageEvent {
   // Garante que mensagens duplicadas do webhook nao sejam processadas duas vezes.
   @@unique([provider, providerMessageId])
   @@index([processingStatus, receivedAt])
+  @@index([clientId, receivedAt])
 }

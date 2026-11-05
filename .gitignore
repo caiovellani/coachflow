@@ -40,3 +40,26 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# segredos e credenciais
+*.key
+*.p12
+*.pfx
+*.crt
+*secret*
+*credentials*
+!src/**
+
+# dados locais
+*.db
+*.sqlite
+*.dump
+*.bundle
+
+# ferramentas locais
+.claude/
+.vscode/
+.idea/
+
+# estrategia do produto: fica fora do repositorio publico
+docs/produto.md

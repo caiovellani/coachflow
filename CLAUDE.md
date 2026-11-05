@@ -1,7 +1,7 @@
 # CoachFlow
 
 SaaS B2B para personal trainers: painel web para o profissional + WhatsApp com agente de IA para o aluno.
-Documento de produto completo: `docs/produto.md` (consulte as fases do roadmap e os limites do agente antes de implementar).
+Documento de produto completo: `docs/produto.md`, local e fora do git porque o repositorio e publico (consulte as fases do roadmap e os limites do agente antes de implementar).
 
 ## Stack
 Next.js 16 (App Router, src/), React 19, TypeScript, Tailwind 4, shadcn/ui, React Hook Form + Zod, Prisma 6 (Postgres no Supabase), Supabase Auth/Storage, pnpm. Windows (PowerShell).
@@ -22,8 +22,16 @@ Next.js 16 (App Router, src/), React 19, TypeScript, Tailwind 4, shadcn/ui, Reac
 8. Coletar apenas dados pessoais necessarios (LGPD).
 
 ## Estado atual
-- Fases 0 a 6 implementadas, mais as regras de alerta da Fase 8 (`src/lib/attention.ts`). Testadas com Auth e Graph API falsos + PGlite; falta validar com Supabase e Meta reais (passos no README).
-- Pendente: Fase 7 (depende da chave OpenAI) e o restante da Fase 8 (lembretes proativos exigem templates aprovados pela Meta).
+- Fases 0 a 7 implementadas, mais as regras de alerta da Fase 8 (`src/lib/attention.ts`). Testadas com Auth, Graph API e modelo falsos + PGlite; falta validar com Supabase, Meta e um modelo reais (passos no README).
+- Pendente: `agent.eval.test.ts` com modelo real e o restante da Fase 8 (lembretes proativos exigem templates aprovados pela Meta).
+
+## Agente de IA (Fase 7)
+- A IA interpreta, o backend decide. Regras em `src/lib/agent/guards.ts`, aplicadas nas ferramentas: nao dependem do prompt.
+- Ferramentas (`src/lib/agent/tools.ts`) nunca recebem ID de aluno ou profissional: vem de `AgentContext`, definido no servidor.
+- Todo numero gravado precisa aparecer nas mensagens do aluno; sessao so conclui se a mensagem do aluno disser isso.
+- Comandos e relato de dor rodam antes da IA (`src/lib/agent/respond.ts`): seguranca e opt-out funcionam com o modelo fora do ar.
+- Ao modelo vai so o primeiro nome do aluno: nunca telefone, e-mail ou observacoes do personal.
+- Treino tem prioridade sobre a biblioteca ao resolver o nome do exercicio ("supino" = o supino do treino).
 
 ## WhatsApp (Fase 6)
 - Provedor: Cloud API oficial da Meta. Webhook em `src/app/api/webhooks/whatsapp/route.ts`: valida assinatura no corpo cru, grava e so depois processa em `after()`.
@@ -48,4 +56,5 @@ Next.js 16 (App Router, src/), React 19, TypeScript, Tailwind 4, shadcn/ui, Reac
 ## Convencoes
 - Textos de interface em portugues (pt-BR); codigo e identificadores em ingles.
 - Mobile-first. Validar formularios com Zod no cliente E no servidor.
+- Todo `<form>` com `onSubmit` usa `method="post"`: antes do JavaScript carregar, o padrao GET poria senhas e dados pessoais na URL.
 - Confirmar APIs de Next/Prisma/Supabase na documentacao das versoes instaladas antes de usar.

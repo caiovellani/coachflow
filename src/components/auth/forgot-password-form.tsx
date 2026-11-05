@@ -28,7 +28,7 @@ export function ForgotPasswordForm() {
   });
 
   return (
-    <form onSubmit={onSubmit} noValidate>
+    <form method="post" onSubmit={onSubmit} noValidate>
       <FieldGroup>
         <FormMessage state={state} />
         <FormField

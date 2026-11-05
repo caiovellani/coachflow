@@ -47,7 +47,22 @@ O webhook precisa de uma URL publica com HTTPS: use o app publicado ou um tunel 
    mesmo verify token e assinar o campo `messages`.
 4. Testar: gerar o codigo no perfil de um aluno e enviar `VINCULAR CODIGO` ao numero.
 
-Comandos do aluno: `TREINO`, `HUMANO`, `SAIR` e `VOLTAR`. O agente de IA entra na Fase 7.
+Comandos do aluno: `TREINO`, `HUMANO`, `SAIR` e `VOLTAR`. Para testar de graca, use o numero de
+teste que a Meta oferece no painel do app (ate 5 destinatarios).
+
+## Fase 7 - agente de IA
+
+Qualquer API compativel com OpenAI serve. Para testes, crie uma chave gratuita em
+https://console.groq.com e defina `AI_API_KEY` no `.env`. Sem a chave, o sistema responde so aos comandos.
+
+Em desenvolvimento, o botao **Simular conversa** no perfil do aluno testa o agente sem WhatsApp.
+Use apenas dados ficticios: planos gratuitos podem usar o conteudo enviado, e o simulador grava
+os registros de verdade.
+
+Ao trocar de modelo, rode a avaliacao, que usa o modelo real com dados ficticios:
+```
+AI_EVAL=1 AI_API_KEY=... TEST_DATABASE_URL=... pnpm test
+```
 
 ## Scripts
 - `pnpm dev` - servidor de desenvolvimento

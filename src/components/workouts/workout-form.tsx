@@ -51,7 +51,7 @@ export function WorkoutForm({
   });
 
   return (
-    <form onSubmit={onSubmit} noValidate className="max-w-xl">
+    <form method="post" onSubmit={onSubmit} noValidate className="max-w-xl">
       <FieldGroup>
         <FormMessage state={state} />
         <FormField control={form.control} name="name" label="Nome do treino" />
