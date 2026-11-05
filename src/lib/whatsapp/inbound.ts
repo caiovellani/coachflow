@@ -1,15 +1,13 @@
 import "server-only";
 
 import {
-  AlertType,
   ClientStatus,
   MessageDirection,
   MessageProcessingStatus,
   type Client,
 } from "@prisma/client";
 
-import { listActiveAssignments } from "@/lib/data/workouts";
-import { formatLoad } from "@/lib/format";
+import { HELP, respondToStudent } from "@/lib/agent/respond";
 import { isSamePhone } from "@/lib/phone";
 import { prisma } from "@/lib/prisma";
 import { sendText } from "@/lib/whatsapp/client";
@@ -17,13 +15,6 @@ import { parseLinkCode } from "@/lib/whatsapp/link-code";
 import type { FailedStatus, InboundMessage } from "@/lib/whatsapp/payload";
 
 const PROVIDER = "meta";
-
-const HELP =
-  'Posso enviar seu treino: mande "TREINO". Para falar com seu personal, mande "HUMANO". Para parar as mensagens automáticas, mande "SAIR".';
-
-// Lista provisoria ate o agente da Fase 7. \b nao funciona depois de letra acentuada.
-const PAIN_REPORT =
-  /(^|[^\p{L}])(dor|dores|d[óo]i|doendo|doeu|desconforto|machu[cq]\p{L}*|les[ãa]o|torci)(?![\p{L}])/iu;
 
 /**
  * Grava antes de processar: uma falha depois disso nao perde a mensagem.
@@ -122,91 +113,6 @@ async function linkClient(
   return linked;
 }
 
-async function workoutText(client: Client) {
-  const assignments = await listActiveAssignments(
-    client.professionalId,
-    client.id,
-  );
-  if (assignments.length === 0) {
-    return "Você ainda não tem treino atribuído. Fale com seu personal.";
-  }
-
-  return assignments
-    .map(({ label, instructions, workoutPlan }) => {
-      const title = [label, workoutPlan.name].filter(Boolean).join(" · ");
-      const items = workoutPlan.exercises.map((item) => {
-        const load = formatLoad(item.referenceLoad, item.loadUnit);
-        return `${item.position}. ${item.exercise.name}: ${item.sets} × ${item.reps}${load ? ` · ${load}` : ""}`;
-      });
-      return [title, instructions, ...items].filter(Boolean).join("\n");
-    })
-    .join("\n\n");
-}
-
-async function createAlert(client: Client, type: AlertType, message: string) {
-  await prisma.alert.create({
-    data: {
-      professionalId: client.professionalId,
-      clientId: client.id,
-      type,
-      message,
-    },
-  });
-}
-
-async function respond(client: Client, recipient: string, text: string) {
-  const command = text.trim().toUpperCase();
-
-  if (command === "SAIR" || command === "PARAR") {
-    await prisma.client.update({
-      where: { id: client.id },
-      data: { messagesOptedOutAt: new Date() },
-    });
-    return reply(
-      recipient,
-      'Pronto, você não receberá mensagens automáticas. Para voltar, mande "VOLTAR".',
-      client,
-    );
-  }
-
-  if (command === "VOLTAR") {
-    await prisma.client.update({
-      where: { id: client.id },
-      data: { messagesOptedOutAt: null },
-    });
-    return reply(recipient, "Combinado, mensagens reativadas.", client);
-  }
-
-  if (command === "HUMANO") {
-    await createAlert(
-      client,
-      AlertType.HUMAN_SUPPORT_REQUESTED,
-      "pediu para falar com você pelo WhatsApp",
-    );
-    return reply(recipient, "Avisei seu personal, que falará com você.", client);
-  }
-
-  if (command === "TREINO") {
-    return reply(recipient, await workoutText(client), client);
-  }
-
-  // Docs 4.7: nao diagnostica, nao trata, registra o relato e sinaliza o personal.
-  if (PAIN_REPORT.test(text)) {
-    await createAlert(
-      client,
-      AlertType.PAIN_REPORTED,
-      `relatou: "${text.trim().slice(0, 200)}"`,
-    );
-    return reply(
-      recipient,
-      "Registrei seu relato e avisei seu personal. Evite continuar o movimento que causou isso até falar com ele. Se for forte ou persistir, procure atendimento profissional.",
-      client,
-    );
-  }
-
-  return reply(recipient, HELP, client);
-}
-
 async function handle(message: InboundMessage): Promise<Client | null> {
   if (message.identityChange) {
     const { from, to } = message.identityChange;
@@ -249,7 +155,12 @@ async function handle(message: InboundMessage): Promise<Client | null> {
   if (message.body === null) {
     await reply(recipient, `Por enquanto só entendo texto. ${HELP}`, client);
   } else {
-    await respond(client, recipient, message.body);
+    await respondToStudent(
+      client,
+      message.body,
+      `${PROVIDER}:${message.providerMessageId}`,
+      (body) => reply(recipient, body, client),
+    );
   }
   return client;
 }

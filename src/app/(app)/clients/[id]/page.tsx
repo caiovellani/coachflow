@@ -90,6 +90,11 @@ async function ClientProfile({ params }: { params: Params }) {
         <LinkButton href={`/clients/${id}/edit`} variant="outline">
           Editar
         </LinkButton>
+        {process.env.NODE_ENV !== "production" && (
+          <LinkButton href={`/clients/${id}/simulator`} variant="outline">
+            Simular conversa
+          </LinkButton>
+        )}
       </PageHeader>
 
       <section className="flex flex-col gap-3 rounded-xl border p-4">
