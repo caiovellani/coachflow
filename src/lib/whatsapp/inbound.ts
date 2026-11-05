@@ -16,6 +16,14 @@ import type { FailedStatus, InboundMessage } from "@/lib/whatsapp/payload";
 
 const PROVIDER = "meta";
 
+export const MAX_ATTEMPTS = 3;
+const RETRY_BATCH_SIZE = 20;
+const MINUTE_MS = 60 * 1000;
+const RETRY_DELAY_MS = MINUTE_MS;
+const STUCK_AFTER_MS = 10 * MINUTE_MS;
+// Fora da janela de 24h da Meta, responder exigiria template.
+const RETRY_WINDOW_MS = 23 * 60 * MINUTE_MS;
+
 /**
  * Grava antes de processar: uma falha depois disso nao perde a mensagem.
  * skipDuplicates + o indice unico tornam o reenvio do webhook inofensivo.
@@ -64,11 +72,31 @@ function senderIds(message: InboundMessage) {
   return [message.senderId, message.phone].filter((id) => id !== null);
 }
 
+const greeting = (firstName: string, coachName: string) =>
+  `Olá, ${firstName}! Sou o assistente de treino conectado ao seu personal, ${coachName}. Sou automático, e seu personal acompanha o que você registra aqui. ${HELP}`;
+
 async function linkClient(
   message: InboundMessage,
   recipient: string,
   code: string,
+  isRetry: boolean,
 ) {
+  // No reenvio o codigo ja foi consumido: so faltou a saudacao.
+  if (isRetry) {
+    const linked = await prisma.client.findFirst({
+      where: { whatsappUserId: recipient, whatsappVerifiedAt: { not: null } },
+      include: { professional: { select: { name: true } } },
+    });
+    if (linked) {
+      await reply(
+        recipient,
+        greeting(linked.name.split(" ")[0], linked.professional.name),
+        linked,
+      );
+      return linked;
+    }
+  }
+
   const client = await prisma.client.findFirst({
     where: {
       whatsappLinkCode: code,
@@ -107,13 +135,16 @@ async function linkClient(
 
   await reply(
     recipient,
-    `Olá, ${linked.name.split(" ")[0]}! Sou o assistente de treino conectado ao seu personal, ${client.professional.name}. Sou automático, e seu personal acompanha o que você registra aqui. ${HELP}`,
+    greeting(linked.name.split(" ")[0], client.professional.name),
     linked,
   );
   return linked;
 }
 
-async function handle(message: InboundMessage): Promise<Client | null> {
+async function handle(
+  message: InboundMessage,
+  isRetry: boolean,
+): Promise<Client | null> {
   if (message.identityChange) {
     const { from, to } = message.identityChange;
     await prisma.client.updateMany({
@@ -127,7 +158,7 @@ async function handle(message: InboundMessage): Promise<Client | null> {
   if (!recipient) return null;
 
   const code = message.body ? parseLinkCode(message.body) : null;
-  if (code) return linkClient(message, recipient, code);
+  if (code) return linkClient(message, recipient, code, isRetry);
 
   const client = await prisma.client.findFirst({
     where: {
@@ -160,34 +191,26 @@ async function handle(message: InboundMessage): Promise<Client | null> {
       message.body,
       `${PROVIDER}:${message.providerMessageId}`,
       (body) => reply(recipient, body, client),
+      { notifyAiFailure: !isRetry },
     );
   }
   return client;
 }
 
-/** Processa uma vez: quem nao ganhar o claim atomico nao faz nada. */
-export async function processInbound(message: InboundMessage) {
+async function run(message: InboundMessage, isRetry: boolean) {
   const where = {
     provider: PROVIDER,
     providerMessageId: message.providerMessageId,
   };
 
-  const { count } = await prisma.messageEvent.updateMany({
-    where: { ...where, processingStatus: MessageProcessingStatus.RECEIVED },
-    data: {
-      processingStatus: MessageProcessingStatus.PROCESSING,
-      attempts: { increment: 1 },
-    },
-  });
-  if (count !== 1) return;
-
   try {
-    const client = await handle(message);
+    const client = await handle(message, isRetry);
     await prisma.messageEvent.updateMany({
       where,
       data: {
         processingStatus: MessageProcessingStatus.PROCESSED,
         processedAt: new Date(),
+        error: null,
         clientId: client?.id,
         professionalId: client?.professionalId,
       },
@@ -202,4 +225,87 @@ export async function processInbound(message: InboundMessage) {
       },
     });
   }
+}
+
+/** Processa uma vez: quem nao ganhar o claim atomico nao faz nada. */
+export async function processInbound(message: InboundMessage) {
+  const { count } = await prisma.messageEvent.updateMany({
+    where: {
+      provider: PROVIDER,
+      providerMessageId: message.providerMessageId,
+      processingStatus: MessageProcessingStatus.RECEIVED,
+    },
+    data: {
+      processingStatus: MessageProcessingStatus.PROCESSING,
+      attempts: { increment: 1 },
+      lastAttemptAt: new Date(),
+    },
+  });
+  if (count === 1) await run(message, false);
+}
+
+/**
+ * Retoma mensagens que falharam ou ficaram paradas. Repetir e seguro: alertas e
+ * exercicios tem chave por mensagem. Sistema e midia (sem texto) nao entram.
+ */
+export async function retryPendingMessages(now: Date) {
+  const before = (ms: number) => new Date(now.getTime() - ms);
+
+  const pending = await prisma.messageEvent.findMany({
+    where: {
+      provider: PROVIDER,
+      direction: MessageDirection.INBOUND,
+      body: { not: null },
+      attempts: { lt: MAX_ATTEMPTS },
+      receivedAt: { gte: before(RETRY_WINDOW_MS) },
+      OR: [
+        {
+          processingStatus: MessageProcessingStatus.FAILED,
+          lastAttemptAt: { lt: before(RETRY_DELAY_MS) },
+        },
+        {
+          processingStatus: MessageProcessingStatus.PROCESSING,
+          lastAttemptAt: { lt: before(STUCK_AFTER_MS) },
+        },
+        {
+          processingStatus: MessageProcessingStatus.RECEIVED,
+          receivedAt: { lt: before(STUCK_AFTER_MS) },
+        },
+      ],
+    },
+    orderBy: { receivedAt: "asc" },
+    take: RETRY_BATCH_SIZE,
+  });
+
+  let retried = 0;
+  for (const event of pending) {
+    // Mesmos status e tentativas de quando lemos: so um processo vence.
+    const { count } = await prisma.messageEvent.updateMany({
+      where: {
+        id: event.id,
+        processingStatus: event.processingStatus,
+        attempts: event.attempts,
+      },
+      data: {
+        processingStatus: MessageProcessingStatus.PROCESSING,
+        attempts: { increment: 1 },
+        lastAttemptAt: now,
+      },
+    });
+    if (count !== 1) continue;
+
+    retried += 1;
+    await run(
+      {
+        providerMessageId: event.providerMessageId,
+        senderId: event.whatsappUserId,
+        phone: event.phone,
+        type: "text",
+        body: event.body,
+        identityChange: null,
+      },
+      true,
+    );
+  }
+  return retried;
 }

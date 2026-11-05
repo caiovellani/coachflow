@@ -50,6 +50,10 @@ O webhook precisa de uma URL publica com HTTPS: use o app publicado ou um tunel 
 Comandos do aluno: `TREINO`, `HUMANO`, `SAIR` e `VOLTAR`. Para testar de graca, use o numero de
 teste que a Meta oferece no painel do app (ate 5 destinatarios).
 
+Mensagens que falham sao retomadas ate 3 vezes, dentro de 23h, quando chega uma nova mensagem. Para
+nao depender disso, chame a cada poucos minutos `GET /api/cron/whatsapp-retry` com o cabecalho
+`Authorization: Bearer CRON_SECRET`, por exemplo com um agendador externo.
+
 ## Fase 7 - agente de IA
 
 Qualquer API compativel com OpenAI serve. Para testes, crie uma chave gratuita em

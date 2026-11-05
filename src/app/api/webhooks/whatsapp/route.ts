@@ -4,9 +4,18 @@ import {
   processInbound,
   recordFailures,
   recordInbound,
+  retryPendingMessages,
 } from "@/lib/whatsapp/inbound";
 import { parseWebhook } from "@/lib/whatsapp/payload";
 import { isValidSignature, safeEqual } from "@/lib/whatsapp/signature";
+
+function parseJson(rawBody: string): unknown {
+  try {
+    return JSON.parse(rawBody);
+  } catch {
+    return null;
+  }
+}
 
 // Handshake feito pela Meta ao cadastrar o webhook.
 export async function GET(request: NextRequest) {
@@ -40,7 +49,7 @@ export async function POST(request: NextRequest) {
     return new Response(null, { status: 401 });
   }
 
-  const events = parseWebhook(JSON.parse(rawBody), phoneNumberId);
+  const events = parseWebhook(parseJson(rawBody), phoneNumberId);
   if (!events) {
     console.error("whatsapp webhook with unknown format");
     return new Response(null, { status: 200 });
@@ -51,6 +60,8 @@ export async function POST(request: NextRequest) {
 
   after(async () => {
     for (const message of events.messages) await processInbound(message);
+    // Cada mensagem nova tambem retoma as pendentes, mesmo sem agendador.
+    await retryPendingMessages(new Date());
   });
 
   return new Response(null, { status: 200 });

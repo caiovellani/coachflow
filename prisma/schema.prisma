@@ -235,6 +235,7 @@ model ExerciseLog {
   exerciseName String // snapshot: nao muda se o exercicio for renomeado
   position     Int     @default(0)
   notes        String?
+  sourceKey    String? @unique // mensagem + exercicio: reprocessar nao duplica
 
   session  WorkoutSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   exercise Exercise       @relation(fields: [exerciseId], references: [id], onDelete: Restrict)
@@ -266,6 +267,7 @@ model Alert {
   type           AlertType
   message        String // explicavel: "sem registro ha 7 dias"
   context        Json?
+  sourceKey      String?     @unique // mensagem + tipo: reprocessar nao duplica
   status         AlertStatus @default(OPEN)
   createdAt      DateTime    @default(now())
   resolvedAt     DateTime?
@@ -291,6 +293,7 @@ model MessageEvent {
   body              String?
   processingStatus  MessageProcessingStatus @default(RECEIVED)
   attempts          Int                     @default(0)
+  lastAttemptAt     DateTime?
   error             String?
   receivedAt        DateTime                @default(now())
   processedAt       DateTime?

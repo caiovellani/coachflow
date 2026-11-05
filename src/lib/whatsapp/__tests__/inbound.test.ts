@@ -75,6 +75,8 @@ describe.skipIf(!url)("mensagens recebidas", () => {
   });
 
   beforeEach(async () => {
+    // O reenvio varre o banco todo: cada teste comeca sem pendencias.
+    await prisma.messageEvent.deleteMany({ where: { provider: "meta" } });
     sent.length = 0;
     sendFails.value = false;
     bsuid = `BR.${randomUUID()}`;
@@ -163,6 +165,102 @@ describe.skipIf(!url)("mensagens recebidas", () => {
     expect(saved.attempts).toBe(1);
     expect(saved.error).toContain("meta fora do ar");
     expect(saved.body).toBe("TREINO");
+  });
+
+  const later = (minutes: number) =>
+    new Date(Date.now() + minutes * 60 * 1000);
+
+  const eventOf = ({ providerMessageId }: InboundMessage) =>
+    prisma.messageEvent.findFirstOrThrow({ where: { providerMessageId } });
+
+  it("reenvio responde depois da falha, sem duplicar alerta", async () => {
+    const event = message("HUMANO");
+    sendFails.value = true;
+    await receive(event);
+    expect(await prisma.alert.count({ where: { clientId } })).toBe(1);
+
+    sendFails.value = false;
+    const replies = sent.length;
+    await inbound.retryPendingMessages(later(2));
+
+    expect(sent.length).toBe(replies + 1);
+    expect(await prisma.alert.count({ where: { clientId } })).toBe(1);
+    const saved = await eventOf(event);
+    expect(saved.processingStatus).toBe("PROCESSED");
+    expect(saved.error).toBeNull();
+    expect(saved.attempts).toBe(2);
+  });
+
+  it("reenvio espera antes de tentar de novo", async () => {
+    const event = message("TREINO");
+    sendFails.value = true;
+    await receive(event);
+    sendFails.value = false;
+
+    await inbound.retryPendingMessages(new Date());
+    expect((await eventOf(event)).processingStatus).toBe("FAILED");
+  });
+
+  it("para depois de 3 tentativas", async () => {
+    const event = message("TREINO");
+    sendFails.value = true;
+    await receive(event);
+    await inbound.retryPendingMessages(later(2));
+    await inbound.retryPendingMessages(later(4));
+    await inbound.retryPendingMessages(later(6));
+    await inbound.retryPendingMessages(later(8));
+
+    const saved = await eventOf(event);
+    expect(saved.attempts).toBe(inbound.MAX_ATTEMPTS);
+    expect(saved.processingStatus).toBe("FAILED");
+  });
+
+  it("nao reenvia fora da janela de 24h da Meta", async () => {
+    const event = message("TREINO");
+    sendFails.value = true;
+    await receive(event);
+    sendFails.value = false;
+
+    const replies = sent.length;
+    await inbound.retryPendingMessages(later(24 * 60));
+    expect(sent.length).toBe(replies);
+  });
+
+  it("vinculo cuja saudacao falhou termina no reenvio", async () => {
+    const { client, code } = await newClient();
+    bsuid = `BR.${randomUUID()}`;
+    const event = message(`VINCULAR ${code}`);
+    sendFails.value = true;
+    await receive(event);
+    sendFails.value = false;
+
+    await inbound.retryPendingMessages(later(2));
+
+    expect(lastReply()).toContain("assistente de treino");
+    expect((await eventOf(event)).clientId).toBe(client.id);
+  });
+
+  it("retoma mensagem parada sem processar", async () => {
+    const event = message("TREINO");
+    await inbound.recordInbound([event]);
+
+    const replies = sent.length;
+    await inbound.retryPendingMessages(later(11));
+    expect(sent.length).toBe(replies + 1);
+  });
+
+  it("dois reenvios simultaneos processam uma vez", async () => {
+    const event = message("TREINO");
+    sendFails.value = true;
+    await receive(event);
+    sendFails.value = false;
+
+    const replies = sent.length;
+    await Promise.all([
+      inbound.retryPendingMessages(later(2)),
+      inbound.retryPendingMessages(later(2)),
+    ]);
+    expect(sent.length).toBe(replies + 1);
   });
 
   it("SAIR e VOLTAR controlam as mensagens automaticas", async () => {

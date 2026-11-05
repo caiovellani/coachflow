@@ -117,12 +117,17 @@ export async function appendExerciseLog(
   },
   idempotencyKey: string,
 ) {
+  const { professionalId, id: clientId } = client;
   const session =
     (await openSessionToday(client)) ??
-    (await prisma.workoutSession.create({
-      data: {
-        professionalId: client.professionalId,
-        clientId: client.id,
+    (await prisma.workoutSession.upsert({
+      where: {
+        professionalId_idempotencyKey: { professionalId, idempotencyKey },
+      },
+      update: {},
+      create: {
+        professionalId,
+        clientId,
         workoutPlanId: entry.workoutPlanId,
         idempotencyKey,
       },
@@ -132,21 +137,35 @@ export async function appendExerciseLog(
     where: { sessionId: session.id },
   });
 
-  return prisma.exerciseLog.create({
-    data: {
-      sessionId: session.id,
-      exerciseId: entry.exercise.id,
-      exerciseName: entry.exercise.name,
-      position: position + 1,
-      sets: {
-        create: entry.reps.map((reps, index) => ({
-          setNumber: index + 1,
-          reps,
-          load: entry.load,
-        })),
+  const sourceKey = `${idempotencyKey}:${JSON.stringify([
+    entry.exercise.id,
+    entry.reps,
+    entry.load,
+  ])}`;
+
+  try {
+    await prisma.exerciseLog.create({
+      data: {
+        sessionId: session.id,
+        exerciseId: entry.exercise.id,
+        exerciseName: entry.exercise.name,
+        position: position + 1,
+        sourceKey,
+        sets: {
+          create: entry.reps.map((reps, index) => ({
+            setNumber: index + 1,
+            reps,
+            load: entry.load,
+          })),
+        },
       },
-    },
-  });
+    });
+  } catch (error) {
+    const isDuplicate =
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2002";
+    if (!isDuplicate) throw error;
+  }
 }
 
 export async function completeOpenSession(client: Client) {

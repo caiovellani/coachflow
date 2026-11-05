@@ -5,6 +5,7 @@ import { z } from "zod";
 
 import { isGrounded, matchExercises, statesCompletion } from "@/lib/agent/guards";
 import type { ToolDefinition } from "@/lib/ai/client";
+import { createAlertOnce } from "@/lib/data/alerts";
 import { listExercises } from "@/lib/data/exercises";
 import {
   appendExerciseLog,
@@ -14,7 +15,6 @@ import {
 import { listActiveAssignments } from "@/lib/data/workouts";
 import { formatDate } from "@/lib/dates";
 import { formatLoad } from "@/lib/format";
-import { prisma } from "@/lib/prisma";
 
 /** Vem do servidor. O modelo nunca informa aluno nem profissional. */
 export type AgentContext = {
@@ -101,15 +101,12 @@ function ambiguous(names: string[]) {
   return { status: "ambiguous", options: names };
 }
 
-async function createAlert(context: AgentContext, type: AlertType, message: string) {
-  await prisma.alert.create({
-    data: {
-      professionalId: context.client.professionalId,
-      clientId: context.client.id,
-      type,
-      message,
-    },
-  });
+async function createAlert(
+  context: AgentContext,
+  type: AlertType,
+  message: string,
+) {
+  await createAlertOnce(context.client, type, message, context.messageKey);
   return { status: "ok" };
 }
 

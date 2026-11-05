@@ -30,6 +30,7 @@ Next.js 16 (App Router, src/), React 19, TypeScript, Tailwind 4, shadcn/ui, Reac
 - Ferramentas (`src/lib/agent/tools.ts`) nunca recebem ID de aluno ou profissional: vem de `AgentContext`, definido no servidor.
 - Todo numero gravado precisa aparecer nas mensagens do aluno; sessao so conclui se a mensagem do aluno disser isso.
 - Comandos e relato de dor rodam antes da IA (`src/lib/agent/respond.ts`): seguranca e opt-out funcionam com o modelo fora do ar.
+- Limite de 60 mensagens por hora por aluno e 1000 caracteres por mensagem para a IA; comandos e dor nao sao limitados.
 - Ao modelo vai so o primeiro nome do aluno: nunca telefone, e-mail ou observacoes do personal.
 - Treino tem prioridade sobre a biblioteca ao resolver o nome do exercicio ("supino" = o supino do treino).
 
@@ -38,7 +39,7 @@ Next.js 16 (App Router, src/), React 19, TypeScript, Tailwind 4, shadcn/ui, Reac
 - Identidade: `Client.whatsappUserId` guarda o BSUID (`user_id`). `from`/`wa_id` podem nao vir; nunca identificar o aluno so pelo telefone. O BSUID muda se o aluno trocar de numero (mensagens `system` tratadas em `inbound.ts`).
 - Vinculo: o aluno envia `VINCULAR <codigo>`. Isso prova a posse, registra o opt-in e abre a janela de 24h. Mensagem proativa fora dela exige template.
 - Enviar com `recipient` (BSUID) ou `to`, nunca os dois: a Meta prioriza o telefone.
-- Resposta com falha fica em `MessageEvent` como FAILED; ainda nao ha reprocessamento automatico.
+- Mensagem com falha e retomada por `retryPendingMessages`: ate 3 tentativas, em ate 23h (janela da Meta). Todo efeito colateral precisa ser repetivel: use `sourceKey` (`Alert`, `ExerciseLog`) ou equivalente.
 
 ## Dados e dominio
 - Acesso a dados em `src/lib/data/*`: toda funcao recebe `professionalId` de `requireProfessional()`. Server Actions em `src/app/actions/*`.

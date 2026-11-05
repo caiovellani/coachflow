@@ -246,6 +246,79 @@ describe.skipIf(!url)("agente", () => {
     expect(toolResult()).toEqual([]);
   });
 
+  it("reprocessar a mesma mensagem nao duplica o registro", async () => {
+    const key = `test:${randomUUID()}`;
+    const send = () =>
+      respond.respondToStudent(
+        client,
+        "fiz supino reto, 10 repetições",
+        key,
+        async (body) => {
+          replies.push(body);
+        },
+      );
+
+    const call: [string, object] = ["recordExercise", { exerciseName: "supino reto", reps: [10] }];
+    ai.script = [{ calls: [call] }, new Error("caiu depois de gravar")];
+    await expect(send()).rejects.toThrow("caiu");
+
+    ai.script = [{ calls: [call] }, { content: "ok" }];
+    await send();
+
+    expect(await logs()).toHaveLength(1);
+    expect(replies.at(-1)).toBe("ok");
+  });
+
+  it("reenvio nao repete o aviso de falha ao aluno", async () => {
+    ai.script = [new Error("429")];
+    await expect(
+      respond.respondToStudent(
+        client,
+        "oi",
+        `test:${randomUUID()}`,
+        async (body) => {
+          replies.push(body);
+        },
+        { notifyAiFailure: false },
+      ),
+    ).rejects.toThrow("429");
+    expect(replies).toEqual([]);
+  });
+
+  it("limita mensagens por hora para proteger o custo da IA", async () => {
+    await prisma.messageEvent.createMany({
+      data: Array.from({ length: 61 }, () => ({
+        provider: "test",
+        providerMessageId: randomUUID(),
+        clientId: client.id,
+        body: "oi",
+      })),
+    });
+    await say("oi");
+    expect(ai.requests).toHaveLength(0);
+    expect(replies[0]).toContain("muitas mensagens");
+  });
+
+  it("limite de IA nao bloqueia dor nem comandos", async () => {
+    await prisma.messageEvent.createMany({
+      data: Array.from({ length: 61 }, () => ({
+        provider: "test",
+        providerMessageId: randomUUID(),
+        clientId: client.id,
+        body: "oi",
+      })),
+    });
+    await say("meu joelho dói");
+    expect(replies[0]).toContain("avisei seu personal");
+  });
+
+  it("corta mensagem enorme antes de enviar ao modelo", async () => {
+    ai.script = [{ content: "ok" }];
+    await say("a".repeat(5000));
+    const sent = JSON.stringify(ai.requests);
+    expect(sent).not.toContain("a".repeat(1001));
+  });
+
   it("repetir a chamada na mesma mensagem nao duplica", async () => {
     const call: [string, object] = ["recordExercise", { exerciseName: "supino reto", reps: [10] }];
     ai.script = [{ calls: [call, call] }, { calls: [call] }, { content: "ok" }];
