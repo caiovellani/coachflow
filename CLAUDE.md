@@ -7,8 +7,8 @@ Documento de produto completo: `docs/produto.md` (consulte as fases do roadmap e
 Next.js 16 (App Router, src/), React 19, TypeScript, Tailwind 4, shadcn/ui, React Hook Form + Zod, Prisma 6 (Postgres no Supabase), Supabase Auth/Storage, pnpm. Windows (PowerShell).
 
 ## Comandos
-- `pnpm dev` | `pnpm typecheck` | `pnpm lint`
-- `pnpm db:migrate --name <nome>` | `pnpm db:generate` | `pnpm db:studio`
+- `pnpm dev` | `pnpm typecheck` | `pnpm lint` | `pnpm test`
+- `pnpm db:migrate --name <nome>` | `pnpm db:deploy` | `pnpm db:generate` | `pnpm db:studio`
 - pnpm 12 bloqueia build scripts: usar `pnpm approve-builds` quando aparecer ERR_PNPM_IGNORED_BUILDS.
 
 ## Regras de arquitetura (inegociaveis)
@@ -22,9 +22,14 @@ Next.js 16 (App Router, src/), React 19, TypeScript, Tailwind 4, shadcn/ui, Reac
 8. Coletar apenas dados pessoais necessarios (LGPD).
 
 ## Estado atual
-- Fase 0: concluida no codigo (build scripts do Prisma aprovados, shadcn inicializado). Pendente: configurar Supabase (.env) e rodar a migration `init`.
-- Fase 1: implementada e testada contra stubs locais (GoTrue falso + PGlite); falta validar com o Supabase real. Passos no README.
-- Proxima: Fase 2 (dashboard).
+- Fases 0 a 5 implementadas, mais as regras de alerta da Fase 8 (`src/lib/attention.ts`). Testadas com Auth falso + PGlite; falta validar com o Supabase real (passos no README).
+- Pendente: Fase 6 (depende de escolher o provedor de WhatsApp), Fase 7 (depende dela e da chave OpenAI) e o restante da Fase 8 (lembretes e alertas vindos de mensagens).
+
+## Dados e dominio
+- Acesso a dados em `src/lib/data/*`: toda funcao recebe `professionalId` de `requireProfessional()`. Server Actions em `src/app/actions/*`.
+- Treino nao tem rascunho: criar publica a v1 e toda edicao gera nova versao em `createPlanVersion`, movendo as atribuicoes ativas.
+- `WorkoutSession.idempotencyKey` ("panel:<uuid>" ou "<provider>:<messageId>") evita sessoes duplicadas; use-a tambem no WhatsApp.
+- Toda migration que criar tabela deve ativar RLS nela: a anon key alcanca o schema `public` pela Data API (ver `prisma/migrations/*_init`).
 
 ## Autenticacao (Fase 1)
 - `src/proxy.ts` nega por padrao: toda rota nova nasce privada. Rotas publicas sao listadas ali. `/api/*` fica fora do proxy e cada rota se autentica.

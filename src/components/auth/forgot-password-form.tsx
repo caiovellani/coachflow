@@ -5,9 +5,9 @@ import { startTransition, useActionState } from "react";
 import { useForm } from "react-hook-form";
 
 import { requestPasswordReset } from "@/app/actions/auth";
-import { FormField } from "@/components/auth/form-field";
-import { FormMessage } from "@/components/auth/form-message";
-import { SubmitButton } from "@/components/auth/submit-button";
+import { FormField } from "@/components/form/form-field";
+import { FormMessage } from "@/components/form/form-message";
+import { SubmitButton } from "@/components/form/submit-button";
 import { FieldGroup } from "@/components/ui/field";
 import {
   forgotPasswordSchema,

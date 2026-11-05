@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import { ResetOnHide } from "@/components/auth/reset-on-hide";
+import { ResetOnHide } from "@/components/form/reset-on-hide";
 import { SignupForm } from "@/components/auth/signup-form";
 
 export const metadata: Metadata = { title: "Criar conta" };

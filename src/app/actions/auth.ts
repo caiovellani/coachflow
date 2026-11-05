@@ -3,6 +3,7 @@
 import type { AuthError } from "@supabase/supabase-js";
 import { redirect } from "next/navigation";
 
+import { INVALID_DATA, type ActionState } from "@/lib/action-state";
 import { safeNextPath } from "@/lib/safe-next-path";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import {
@@ -11,16 +12,6 @@ import {
   resetPasswordSchema,
   signupSchema,
 } from "@/lib/validations/auth";
-
-export type AuthActionState = {
-  status: "success" | "error";
-  message: string;
-} | null;
-
-const INVALID_DATA: AuthActionState = {
-  status: "error",
-  message: "Verifique os dados informados.",
-};
 
 const AUTH_ERROR_MESSAGES: Record<string, string> = {
   invalid_credentials: "E-mail ou senha incorretos.",
@@ -35,7 +26,7 @@ const AUTH_ERROR_MESSAGES: Record<string, string> = {
     "Muitas tentativas. Aguarde alguns minutos e tente novamente.",
 };
 
-function authError(error: AuthError): AuthActionState {
+function authError(error: AuthError): ActionState {
   const message = error.code && AUTH_ERROR_MESSAGES[error.code];
   if (message) return { status: "error", message };
 
@@ -57,9 +48,9 @@ function confirmUrl(next: string) {
 }
 
 export async function signIn(
-  _prevState: AuthActionState,
+  _prevState: ActionState,
   input: { values: unknown; next: unknown },
-): Promise<AuthActionState> {
+): Promise<ActionState> {
   const parsed = loginSchema.safeParse(input.values);
   if (!parsed.success) return INVALID_DATA;
 
@@ -71,9 +62,9 @@ export async function signIn(
 }
 
 export async function signUp(
-  _prevState: AuthActionState,
+  _prevState: ActionState,
   input: unknown,
-): Promise<AuthActionState> {
+): Promise<ActionState> {
   const parsed = signupSchema.safeParse(input);
   if (!parsed.success) return INVALID_DATA;
 
@@ -100,9 +91,9 @@ export async function signUp(
 }
 
 export async function requestPasswordReset(
-  _prevState: AuthActionState,
+  _prevState: ActionState,
   input: unknown,
-): Promise<AuthActionState> {
+): Promise<ActionState> {
   const parsed = forgotPasswordSchema.safeParse(input);
   if (!parsed.success) return INVALID_DATA;
 
@@ -122,9 +113,9 @@ export async function requestPasswordReset(
 }
 
 export async function updatePassword(
-  _prevState: AuthActionState,
+  _prevState: ActionState,
   input: unknown,
-): Promise<AuthActionState> {
+): Promise<ActionState> {
   const parsed = resetPasswordSchema.safeParse(input);
   if (!parsed.success) return INVALID_DATA;
 

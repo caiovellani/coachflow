@@ -14,15 +14,14 @@ Next.js + React + TypeScript, Tailwind + shadcn/ui, React Hook Form + Zod, Prism
    - **Session pooler / direct** (porta 5432) -> `DIRECT_URL`
 3. Em *Project Settings > API*, copiar a URL e a anon/publishable key -> `.env`.
 4. Preencher o `.env` (copiado de `.env.example`; ele esta no `.gitignore`).
-5. Rodar a primeira migration:
+5. Aplicar a migration, que ja esta no repositorio e ativa RLS em todas as tabelas:
    ```
-   pnpm db:migrate --name init
+   pnpm db:deploy
    ```
+   O RLS e necessario porque a anon key (publica) alcanca o schema `public` pela Data API do
+   Supabase. Sem policies, essa via fica bloqueada e o Prisma continua funcionando.
 6. Validar leitura/escrita: `pnpm dev` e abrir http://localhost:3000/api/health/db
    (deve responder `{"ok":true,"professionals":0}`). Opcional: `pnpm db:studio`.
-7. **Ativar RLS em todas as tabelas do schema `public`.** O Prisma cria as tabelas sem RLS, e a
-   anon key (publica) acessa essas tabelas pela Data API do Supabase. Com RLS ativo e sem
-   policies, a Data API fica bloqueada e o Prisma continua funcionando.
 
 ## Fase 1 - configuracao do Supabase Auth
 
@@ -38,8 +37,11 @@ Next.js + React + TypeScript, Tailwind + shadcn/ui, React Hook Form + Zod, Prism
 
 ## Scripts
 - `pnpm dev` - servidor de desenvolvimento
-- `pnpm db:generate` / `pnpm db:migrate` / `pnpm db:studio` - Prisma
+- `pnpm db:generate` / `pnpm db:migrate` / `pnpm db:deploy` / `pnpm db:studio` - Prisma
 - `pnpm typecheck` / `pnpm lint`
+- `pnpm test` - regras puras. Os testes de isolamento entre profissionais so rodam com
+  `TEST_DATABASE_URL` apontando para um Postgres descartavel, com as migrations aplicadas.
+  Nunca use o banco real: eles gravam dados.
 
 ## Regras de arquitetura (do documento)
 - Todo acesso a dados passa pelo backend; derive o profissional da **sessao** (`src/lib/auth.ts`), nunca de um ID enviado pelo navegador.
